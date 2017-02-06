@@ -1,0 +1,88 @@
+---
+- hosts: all
+  become: true
+  tasks:
+    - name: Install openjdk-8-jdk-headless
+      apt: pkg=openjdk-8-jdk-headless update_cache=true autoremove=yes
+
+    - name: Create jetty home directory
+      file: 
+        path: /opt/jetty/temp 
+        state: directory
+    - name: Create Jetty user
+      user:
+        name: jetty
+        comment: Jetty User
+        home: /opt/jetty/temp
+        shell: /bin/false
+    - name: Change ownership of /opt/jetty to jetty user
+      file: 
+        path: /opt/jetty/
+        state: directory
+        owner: jetty
+        recurse: yes
+    - name: Create download directory
+      file: 
+        path: /tmp/Download
+        state: directory
+    - name: Create web application directories
+      file: 
+        path: /opt/jetty/temp 
+        state: directory
+        owner: jetty
+    - name: Download Jetty 9.3.12.v20160915
+      get_url:
+        url: http://repo1.maven.org/maven2/org/eclipse/jetty/jetty-distribution/9.3.12.v20160915/jetty-distribution-9.3.12.v20160915.tar.gz
+        dest: /tmp/Download/
+    - name: Create folder for webapps
+      file:
+        path: /opt/web/base
+        state: directory
+        recurse: yes
+        owner: jetty
+    - name: Extract /tmp/jetty/jetty-distribution-9.3.12.v20160915.tar.gz to /opt/web/base/
+      unarchive:
+        src: /tmp/Download/jetty-distribution-9.3.12.v20160915.tar.gz
+        dest: /opt/web/base/
+        remote_src: True
+        owner: jetty
+    - name: Copy /opt/jetty/jetty-distribution-9.3.12.v20160915/bin/jetty.sh to /etc/init.d/jetty
+      copy:
+        src: /opt/jetty/jetty-distribution-9.3.12.v20160915/bin/jetty.sh
+        dest: /etc/init.d/jetty
+        mode: 0755
+    - name: Copy files/jetty to /etc/default/jetty
+      copy:
+        src: files/jetty
+        dest: /etc/default/
+    - name: Copy files/start.ini to /opt/web/base
+      copy:
+        src: files/start.ini
+        dest: /opt/web/base/
+        owner: jetty
+
+
+    # - name: Download Xwiki 8.2.1 to /tmp/Download
+    #   get_url:
+    #     url: http://download.forge.ow2.org/xwiki/xwiki-enterprise-web-8.2.1.war
+    #     dest: /tmp/Download/
+    # - name: Extract xwiki-enterprise-web-8.2.1.war to /opt/web/base/webapps/root
+    #   unarchive:
+    #     src: /tmp/Download/xwiki-enterprise-web-8.2.1.war
+    #     dest: /opt/web/base/webapps/root/
+    #     remote_src: True
+    #     owner: jetty
+    # - name: Download MySQL JDBC
+    #   get_url:
+    #     url: https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.40.tar.gz
+    #     dest: /tmp/Download/
+    # - name: Extract MySQL JDBC
+    #   unarchive:
+    #     src: /tmp/Download/mysql-connector-java-5.1.40.tar.gz
+    #     dest: /tmp/Download/
+    # - name: Copy MySQL JDBC jar file to /opt/web/base/webapps/root/WEB-INF/lib/
+    #   copy:
+    #     src: /tmp/Download/mysql-connector-java-5.1.40/mysql-connector-java-5.1.40-bin.jar
+    #     dest: /opt/web/base/webapps/root/WEB-INF/lib/
+    #     remote_src: True
+    #     owner: jetty

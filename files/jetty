@@ -1,0 +1,3 @@
+JETTY_HOME=/opt/jetty/jetty-distribution-9.3.12.v20160915
+JETTY_BASE=/opt/web/base
+TMPDIR=/opt/jetty/temp
