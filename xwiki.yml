@@ -1,9 +1,20 @@
 ---
 - hosts: all
-  become: true
+  become: yes
+
+  vars:
+    mysql_root_password: 2dfeed5fdedba085dd099521662e2a8b
+    mysql_xwiki_password: e0ee81e472e6fc6be9c6cfdc0099f920
+    webapps_directory: /opt/web/base/webapps/root
+
   tasks:
-    - name: Install openjdk-8-jdk-headless
-      apt: pkg=openjdk-8-jdk-headless update_cache=true autoremove=yes
+    - name: Install openjdk-8-jdk-headless, python-mysqldb, mysql-server and unzip
+      apt: pkg={{ item }} update_cache=true autoremove=yes
+      with_items:
+        - openjdk-8-jdk-headless
+        - python-mysqldb
+        - mysql-server
+        - unzip
 
     - name: Create jetty home directory
       file: 
@@ -24,7 +35,7 @@
 
     - name: Create web application directories
       file: 
-        path: /opt/web/base 
+        path: "{{ webapps_directory }}"
         state: directory
         owner: jetty
         recurse: yes
@@ -32,7 +43,7 @@
     - name: Download Jetty 9.3.12.v20160915
       get_url:
         url: http://repo1.maven.org/maven2/org/eclipse/jetty/jetty-distribution/9.3.12.v20160915/jetty-distribution-9.3.12.v20160915.tar.gz
-        dest: /tmp/Download/
+        dest: /tmp/Download/jetty-distribution-9.3.12.v20160915.tar.gz
 
     - name: Extract /tmp/jetty/jetty-distribution-9.3.12.v20160915.tar.gz to /opt/jetty
       unarchive:
@@ -64,6 +75,83 @@
         dest: /opt/web/base/
         owner: jetty
 
+    - name: Start the MySQL service
+      become: yes
+      service:
+        name: mysql
+        state: started
+        enabled: yes
+
+    - name: Update MySQL root password for all root accounts
+      become: yes
+      mysql_user:
+        name: root
+        host: "{{ item }}"
+        password: "{{ mysql_root_password }}"
+        check_implicit_admin: yes
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        priv: "*.*:ALL,GRANT"
+      with_items:
+        - 127.0.0.1
+        - ::1
+        - localhost
+
+    - name: Download Xwiki 8.2.1 to /tmp/Download
+      get_url:
+        url: http://download.forge.ow2.org/xwiki/xwiki-enterprise-web-8.2.1.war
+        dest: /tmp/Download/xwiki-enterprise-web-8.2.1.war
+
+    - name: Extract xwiki-enterprise-web-8.2.1.war to /opt/web/base/webapps/root
+      unarchive:
+        src: /tmp/Download/xwiki-enterprise-web-8.2.1.war
+        dest: /opt/web/base/webapps/root/
+        remote_src: True
+        owner: jetty
+
+    - name: Download MySQL JDBC
+      get_url:
+        url: https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.40.tar.gz
+        dest: /tmp/Download/mysql-connector-java-5.1.40.tar.gz
+
+    - name: Extract MySQL JDBC
+      unarchive:
+        src: /tmp/Download/mysql-connector-java-5.1.40.tar.gz
+        dest: /tmp/Download/
+        remote_src: True
+
+    - name: Copy MySQL JDBC jar file to /opt/web/base/webapps/root/WEB-INF/lib/
+      copy:
+        src: /tmp/Download/mysql-connector-java-5.1.40/mysql-connector-java-5.1.40-bin.jar
+        dest: /opt/web/base/webapps/root/WEB-INF/lib/
+        remote_src: True
+        owner: jetty
+
+    - name: Create MySQL user for XWiki
+      # become: yes
+      mysql_user:
+        name: xwiki
+        password: "{{ mysql_xwiki_password }}"
+        check_implicit_admin: yes
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        priv: '*.*:ALL,GRANT'
+
+    - name: Create MySQL database for XWiki
+      mysql_db:
+        name: xwiki
+        state: present
+        encoding: utf8
+        collation: utf8_bin
+        login_user: xwiki
+        login_password: "{{ mysql_xwiki_password }}"
+
+    - name: Copy files/hibernate.cfg.xml to /opt/web/base/webapps/root/WEB-INF/
+      copy:
+        src: files/hibernate.cfg.xml
+        dest: /opt/web/base/webapps/root/WEB-INF/
+        owner: jetty
+
     - name: Change ownership of /opt/jetty to jetty user
       file: 
         path: /opt/jetty/
@@ -73,33 +161,10 @@
 
     - name: Change ownership of /opt/web/base to jetty user
       file: 
-        path: /opt/web/base
+        path: "{{ webapps_directory }}"
         state: directory
         owner: jetty
         recurse: yes
 
-
-    # - name: Download Xwiki 8.2.1 to /tmp/Download
-    #   get_url:
-    #     url: http://download.forge.ow2.org/xwiki/xwiki-enterprise-web-8.2.1.war
-    #     dest: /tmp/Download/
-    # - name: Extract xwiki-enterprise-web-8.2.1.war to /opt/web/base/webapps/root
-    #   unarchive:
-    #     src: /tmp/Download/xwiki-enterprise-web-8.2.1.war
-    #     dest: /opt/web/base/webapps/root/
-    #     remote_src: True
-    #     owner: jetty
-    # - name: Download MySQL JDBC
-    #   get_url:
-    #     url: https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.40.tar.gz
-    #     dest: /tmp/Download/
-    # - name: Extract MySQL JDBC
-    #   unarchive:
-    #     src: /tmp/Download/mysql-connector-java-5.1.40.tar.gz
-    #     dest: /tmp/Download/
-    # - name: Copy MySQL JDBC jar file to /opt/web/base/webapps/root/WEB-INF/lib/
-    #   copy:
-    #     src: /tmp/Download/mysql-connector-java-5.1.40/mysql-connector-java-5.1.40-bin.jar
-    #     dest: /opt/web/base/webapps/root/WEB-INF/lib/
-    #     remote_src: True
-    #     owner: jetty
+    # - name: Start the Jetty service
+    #   shell: sudo su jetty -s /bin/bash -c "/etc/init.d/jetty start"
