@@ -161,10 +161,10 @@
 
     - name: Change ownership of /opt/web/base to jetty user
       file: 
-        path: "{{ webapps_directory }}"
+        path: /opt/web/base
         state: directory
         owner: jetty
         recurse: yes
 
-    # - name: Start the Jetty service
-    #   shell: sudo su jetty -s /bin/bash -c "/etc/init.d/jetty start"
+    - name: Start the Jetty service
+      shell: sudo su jetty -s /bin/bash -c "/etc/init.d/jetty restart"
